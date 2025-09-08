@@ -1,0 +1,1 @@
+{"uuid":"cdf10db2-dadb-4658-ae91-798943b9d621","name":"Automation Suite","children":["61e85f40-c556-411a-8b5d-1f21fd3a6035"],"befores":[{"name":"beforeEverything","status":"passed","stage":"finished","description":"","steps":[],"attachments":[],"parameters":[],"start":1757011553466,"stop":1757011558493}],"afters":[],"start":1757011553420,"stop":1757011573621}

@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE suite SYSTEM "http://testng.org/testng-1.0.dtd">
+<suite name="Automation Suite">
+    <listeners>
+        <listener class-name="AUT.listeners.ReportListeners"></listener>
+    </listeners>
+    <test name="Vengo Automation Smoke Test">
+        <parameter name="browser" value="chrome"/>
+
+        <!--The below parameter is for Deactivating Compounds-->
+        <parameter name="dataSets" value="BCL201|BCL201A1|CBCL201X2102C;YTB323|YTB323B1|CYTB323B12301;YTB323|YTB323B1|CYTB323B12302;BAF312|BAF312C|CBASICHR0024;BAF312|BAF312C|CBAF312X2207;AAA001|AAA001A0_MA|CAAA001A0AF01P;CLG561|CLG561A1|CCLG561X2201A;KAE609|KAE609A0|CKAE609A2112;KAE609|KAE609A0|CKAE609A2103;KAE609|KAE609A0|CKAE609A2113;KAE609|KAE609A0|CKAE609A2111;ADPT03|ADPT03A1|CADPT03A12101"/>
+
+        <!--The below parameter is for Deactivation Vendor-->
+        <parameter name="deactivateDataSets" value="4G Clinical"/>
+        <classes>
+            <class name="Vengo.Regression_TestCases.TempoTestDataCreation"/>
+            <class name="Vengo.Regression_TestCases.Deactivate_Retrigger_venGo_Qra_Interaction"/>
+        </classes>
+    </test>
+</suite>

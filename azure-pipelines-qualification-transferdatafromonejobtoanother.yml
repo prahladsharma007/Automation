@@ -1,0 +1,675 @@
+# Maven
+
+# Build your Java project and run tests with Apache Maven.
+# Add steps that analyze code, save build artifacts, deploy, and more:
+# https://docs.microsoft.com/azure/devops/pipelines/languages/java
+
+trigger:
+  - main
+
+jobs:
+  - job: Regression_Qualification_01
+    displayName: 'Regression_Qualification_01 - Job'
+    pool:
+      vmImage: windows-latest
+    steps:
+      - script: |
+          mvn install:install-file -Dfile=pre-requisites/appian-selenium-api-25.1.jar -DgroupId=appian -DartifactId=appian-selenium-api -Dversion=25.1 -Dpackaging=jar
+        displayName: 'Maven install custom jar'
+
+      - task: Maven@3
+        displayName: 'Install maven dependency'
+        inputs:
+          mavenPomFile: 'pom.xml'
+          mavenOptions: '-Xmx3072m'
+          javaHomeOption: 'JDKVersion'
+          jdkVersionOption: '11'
+          jdkArchitectureOption: 'x64'
+          goals: 'clean install -DskipTests'
+
+      - task: Maven@3
+        displayName: 'Run Testcases'
+        inputs:
+          mavenPomFile: 'pom.xml'
+          mavenOptions: '-Xmx3072m'
+          javaHomeOption: 'JDKVersion'
+          jdkVersionOption: '11'
+          jdkArchitectureOption: 'x64'
+          goals: 'test -DsuiteFile=testng_regression_17_qualification.xml -Durl=https://nvs-test2.appiancloud.com/suite/sites/vendor-partnership-governance?signin=Native'
+
+      - task: PublishBuildArtifacts@1
+        displayName: 'Publish Reports'
+        condition: succeededOrFailed()
+        inputs:
+          pathtoPublish: 'Reports/'
+          artifactName: 'Reports'
+
+      - task: PublishBuildArtifacts@1
+        displayName: 'Publish Screenshots on Failure'
+        condition: failed()
+        inputs:
+          pathtoPublish: 'Screenshots'
+          artifactName: 'Screenshots'
+
+      - task: Maven@3
+        displayName: 'Updating Test Results in Test Plan'
+        condition: succeededOrFailed()
+        inputs:
+          mavenPomFile: 'pom.xml'
+          mavenOptions: '-Xmx3072m'
+          javaHomeOption: 'JDKVersion'
+          jdkVersionOption: '11'
+          jdkArchitectureOption: 'x64'
+          publishJUnitResults: false
+          goals: 'test -DsuiteFile=updateTestResultRegression.xml'
+
+      - powershell: |
+          if (Test-Path "target\surefire-reports\testng-failed.xml") {
+            Write-Host "##vso[task.setvariable variable=FAILED_EXISTS]yes"
+          } else {
+            Write-Host "##vso[task.setvariable variable=FAILED_EXISTS]no"
+            Write-Host "No failed tests to rerun."
+          }
+        displayName: 'Check for failed tests'
+        condition: always()
+
+      # - script: echo "FAILED_EXISTS: $(FAILED_EXISTS)"
+      #   displayName: 'Show FAILED_EXISTS value'
+
+      - script: python -m pip install lxml
+        displayName: 'Install lxml'
+        condition: eq(variables['FAILED_EXISTS'], 'yes')
+
+      - script: python order_testng_failed.py testng_regression_17_qualification.xml target/surefire-reports/testng-failed.xml target/surefire-reports/testng-failed-ordered.xml
+        displayName: 'Create ordered failed suite'
+        condition: eq(variables['FAILED_EXISTS'], 'yes')
+
+      - task: Maven@3
+        displayName: 'Rerun failed tests in testng.xml order'
+        condition: eq(variables['FAILED_EXISTS'], 'yes')
+        inputs:
+          mavenPomFile: 'pom.xml'
+          goals: 'test'
+          options: '-Dsurefire.suiteXmlFiles=target/surefire-reports/testng-failed-ordered.xml'
+
+      - task: PublishBuildArtifacts@1
+        displayName: 'Publish testng-failed-ordered.xml as artifact'
+        condition: eq(variables['FAILED_EXISTS'], 'yes')
+        inputs:
+          targetPath: '$(System.DefaultWorkingDirectory)/testng-failed-ordered.xml'
+          artifact: 'testng-failed-suite'
+          publishLocation: 'pipeline'
+
+      - task: PublishBuildArtifacts@1
+        displayName: 'Publish Reports for rerun'
+        condition: succeededOrFailed()
+        inputs:
+          pathtoPublish: 'Reports/'
+          artifactName: 'Reports_RerunTests'
+
+      - task: PublishBuildArtifacts@1
+        displayName: 'Publish Screenshots for failed rerun'
+        condition: failed()
+        inputs:
+          pathtoPublish: 'Screenshots'
+          artifactName: 'Screenshots_FailedRerun'
+
+      - task: PublishPipelineArtifact@1
+        displayName: 'Publish a JSON pipeline artifact'
+        condition: always()
+        inputs:
+          targetPath: '$(System.DefaultWorkingDirectory)/output.json'
+          artifact: 'myjson'
+          publishLocation: 'pipeline'
+
+      - task: Maven@4
+        displayName: 'Updating Test Results for Failed Tests in Test Plan'
+        condition: succeededOrFailed()
+        inputs:
+          mavenPomFile: 'pom.xml'
+          mavenOptions: '-Xmx3072m'
+          javaHomeOption: 'JDKVersion'
+          jdkVersionOption: '11'
+          jdkArchitectureOption: 'x64'
+          publishJUnitResults: false
+          goals: 'test -DsuiteFile=updateTestResult.xml'
+
+  - job: Regression_Qualification_02
+    displayName: 'Regression_Qualification_02 - Job'
+    dependsOn: Regression_Qualification_01
+    continueOnError: true
+    condition: always()
+    pool:
+      vmImage: windows-latest
+    steps:
+      - script: |
+          mvn install:install-file -Dfile=pre-requisites/appian-selenium-api-25.1.jar -DgroupId=appian -DartifactId=appian-selenium-api -Dversion=25.1 -Dpackaging=jar
+        displayName: 'Maven install custom jar'
+
+      - task: Maven@3
+        displayName: 'Install maven dependency'
+        inputs:
+          mavenPomFile: 'pom.xml'
+          mavenOptions: '-Xmx3072m'
+          javaHomeOption: 'JDKVersion'
+          jdkVersionOption: '11'
+          jdkArchitectureOption: 'x64'
+          goals: 'clean install -DskipTests'
+
+      - task: DownloadPipelineArtifact@2
+        displayName: 'Download JSON artifact'
+        inputs:
+          artifact: 'myjson'
+          path: '$(System.DefaultWorkingDirectory)'
+
+      - task: Maven@3
+        displayName: 'Run Testcases'
+        inputs:
+          mavenPomFile: 'pom.xml'
+          mavenOptions: '-Xmx3072m'
+          javaHomeOption: 'JDKVersion'
+          jdkVersionOption: '11'
+          jdkArchitectureOption: 'x64'
+          goals: 'test -DsuiteFile=testng_regression_18_qualification.xml -Durl=https://nvs-test2.appiancloud.com/suite/sites/vendor-partnership-governance?signin=Native'
+
+      - task: PublishBuildArtifacts@1
+        displayName: 'Publish Reports'
+        condition: succeededOrFailed()
+        inputs:
+          pathtoPublish: 'Reports/'
+          artifactName: 'Reports'
+
+      - task: PublishBuildArtifacts@1
+        displayName: 'Publish Screenshots on Failure'
+        condition: failed()
+        inputs:
+          pathtoPublish: 'Screenshots'
+          artifactName: 'Screenshots'
+
+      - task: Maven@3
+        displayName: 'Updating Test Results in Test Plan'
+        condition: succeededOrFailed()
+        inputs:
+          mavenPomFile: 'pom.xml'
+          mavenOptions: '-Xmx3072m'
+          javaHomeOption: 'JDKVersion'
+          jdkVersionOption: '11'
+          jdkArchitectureOption: 'x64'
+          publishJUnitResults: false
+          goals: 'test -DsuiteFile=updateTestResultRegression.xml'
+
+      - powershell: |
+          if (Test-Path "target\surefire-reports\testng-failed.xml") {
+            Write-Host "##vso[task.setvariable variable=FAILED_EXISTS]yes"
+          } else {
+            Write-Host "##vso[task.setvariable variable=FAILED_EXISTS]no"
+            Write-Host "No failed tests to rerun."
+          }
+        displayName: 'Check for failed tests'
+        condition: always()
+
+      # - script: echo "FAILED_EXISTS: $(FAILED_EXISTS)"
+      #   displayName: 'Show FAILED_EXISTS value'
+
+      - script: python -m pip install lxml
+        displayName: 'Install lxml'
+        condition: eq(variables['FAILED_EXISTS'], 'yes')
+
+      - script: python order_testng_failed.py testng_regression_18_qualification.xml target/surefire-reports/testng-failed.xml target/surefire-reports/testng-failed-ordered.xml
+        displayName: 'Create ordered failed suite'
+        condition: eq(variables['FAILED_EXISTS'], 'yes')
+
+      - task: Maven@3
+        displayName: 'Rerun failed tests in testng.xml order'
+        condition: eq(variables['FAILED_EXISTS'], 'yes')
+        inputs:
+          mavenPomFile: 'pom.xml'
+          goals: 'test'
+          options: '-Dsurefire.suiteXmlFiles=target/surefire-reports/testng-failed-ordered.xml'
+
+      - task: PublishBuildArtifacts@1
+        displayName: 'Publish testng-failed-ordered.xml as artifact'
+        condition: eq(variables['FAILED_EXISTS'], 'yes')
+        inputs:
+          targetPath: '$(System.DefaultWorkingDirectory)/testng-failed-ordered.xml'
+          artifact: 'testng-failed-suite'
+          publishLocation: 'pipeline'
+
+      - task: PublishBuildArtifacts@1
+        displayName: 'Publish Reports for rerun'
+        condition: succeededOrFailed()
+        inputs:
+          pathtoPublish: 'Reports/'
+          artifactName: 'Reports_RerunTests'
+
+      - task: PublishBuildArtifacts@1
+        displayName: 'Publish Screenshots for failed rerun'
+        condition: failed()
+        inputs:
+          pathtoPublish: 'Screenshots'
+          artifactName: 'Screenshots_FailedRerun'
+
+      - task: PublishPipelineArtifact@1
+        displayName: 'Publish a JSON pipeline artifact'
+        condition: always()
+        inputs:
+          targetPath: '$(System.DefaultWorkingDirectory)/output.json'
+          artifact: 'myjson'
+          publishLocation: 'pipeline'
+
+      - task: Maven@4
+        displayName: 'Updating Test Results for Failed Tests in Test Plan'
+        condition: succeededOrFailed()
+        inputs:
+          mavenPomFile: 'pom.xml'
+          mavenOptions: '-Xmx3072m'
+          javaHomeOption: 'JDKVersion'
+          jdkVersionOption: '11'
+          jdkArchitectureOption: 'x64'
+          publishJUnitResults: false
+          goals: 'test -DsuiteFile=updateTestResult.xml'
+
+  - job: Regression_Qualification_03
+    displayName: 'Regression_Qualification_03 - Job'
+    dependsOn: Regression_Qualification_02
+    continueOnError: true
+    condition: always()
+    pool:
+      vmImage: windows-latest
+    steps:
+      - script: |
+          mvn install:install-file -Dfile=pre-requisites/appian-selenium-api-25.1.jar -DgroupId=appian -DartifactId=appian-selenium-api -Dversion=25.1 -Dpackaging=jar
+        displayName: 'Maven install custom jar'
+
+      - task: Maven@3
+        displayName: 'Install maven dependency'
+        inputs:
+          mavenPomFile: 'pom.xml'
+          mavenOptions: '-Xmx3072m'
+          javaHomeOption: 'JDKVersion'
+          jdkVersionOption: '11'
+          jdkArchitectureOption: 'x64'
+          goals: 'clean install -DskipTests'
+
+      - task: DownloadPipelineArtifact@2
+        displayName: 'Download JSON artifact'
+        inputs:
+          artifact: 'myjson'
+          path: '$(System.DefaultWorkingDirectory)'
+
+      - task: Maven@3
+        displayName: 'Run Testcases'
+        inputs:
+          mavenPomFile: 'pom.xml'
+          mavenOptions: '-Xmx3072m'
+          javaHomeOption: 'JDKVersion'
+          jdkVersionOption: '11'
+          jdkArchitectureOption: 'x64'
+          goals: 'test -DsuiteFile=testng_regression_19_qualification.xml -Durl=https://nvs-test2.appiancloud.com/suite/sites/vendor-partnership-governance?signin=Native'
+
+      - task: PublishBuildArtifacts@1
+        displayName: 'Publish Reports'
+        condition: succeededOrFailed()
+        inputs:
+          pathtoPublish: 'Reports/'
+          artifactName: 'Reports'
+
+      - task: PublishBuildArtifacts@1
+        displayName: 'Publish Screenshots on Failure'
+        condition: failed()
+        inputs:
+          pathtoPublish: 'Screenshots'
+          artifactName: 'Screenshots'
+
+      - task: Maven@3
+        displayName: 'Updating Test Results in Test Plan'
+        condition: succeededOrFailed()
+        inputs:
+          mavenPomFile: 'pom.xml'
+          mavenOptions: '-Xmx3072m'
+          javaHomeOption: 'JDKVersion'
+          jdkVersionOption: '11'
+          jdkArchitectureOption: 'x64'
+          publishJUnitResults: false
+          goals: 'test -DsuiteFile=updateTestResultRegression.xml'
+
+      - powershell: |
+          if (Test-Path "target\surefire-reports\testng-failed.xml") {
+            Write-Host "##vso[task.setvariable variable=FAILED_EXISTS]yes"
+          } else {
+            Write-Host "##vso[task.setvariable variable=FAILED_EXISTS]no"
+            Write-Host "No failed tests to rerun."
+          }
+        displayName: 'Check for failed tests'
+        condition: always()
+
+      # - script: echo "FAILED_EXISTS: $(FAILED_EXISTS)"
+      #   displayName: 'Show FAILED_EXISTS value'
+
+      - script: python -m pip install lxml
+        displayName: 'Install lxml'
+        condition: eq(variables['FAILED_EXISTS'], 'yes')
+
+      - script: python order_testng_failed.py testng_regression_19_qualification.xml target/surefire-reports/testng-failed.xml target/surefire-reports/testng-failed-ordered.xml
+        displayName: 'Create ordered failed suite'
+        condition: eq(variables['FAILED_EXISTS'], 'yes')
+
+      - task: Maven@3
+        displayName: 'Rerun failed tests in testng.xml order'
+        condition: eq(variables['FAILED_EXISTS'], 'yes')
+        inputs:
+          mavenPomFile: 'pom.xml'
+          goals: 'test'
+          options: '-Dsurefire.suiteXmlFiles=target/surefire-reports/testng-failed-ordered.xml'
+
+      - task: PublishBuildArtifacts@1
+        displayName: 'Publish testng-failed-ordered.xml as artifact'
+        condition: eq(variables['FAILED_EXISTS'], 'yes')
+        inputs:
+          targetPath: '$(System.DefaultWorkingDirectory)/testng-failed-ordered.xml'
+          artifact: 'testng-failed-suite'
+          publishLocation: 'pipeline'
+
+      - task: PublishBuildArtifacts@1
+        displayName: 'Publish Reports for rerun'
+        condition: succeededOrFailed()
+        inputs:
+          pathtoPublish: 'Reports/'
+          artifactName: 'Reports_RerunTests'
+
+      - task: PublishBuildArtifacts@1
+        displayName: 'Publish Screenshots for failed rerun'
+        condition: failed()
+        inputs:
+          pathtoPublish: 'Screenshots'
+          artifactName: 'Screenshots_FailedRerun'
+
+      - task: PublishPipelineArtifact@1
+        displayName: 'Publish a JSON pipeline artifact'
+        condition: always()
+        inputs:
+          targetPath: '$(System.DefaultWorkingDirectory)/output.json'
+          artifact: 'myjson'
+          publishLocation: 'pipeline'
+
+      - task: Maven@4
+        displayName: 'Updating Test Results for Failed Tests in Test Plan'
+        condition: succeededOrFailed()
+        inputs:
+          mavenPomFile: 'pom.xml'
+          mavenOptions: '-Xmx3072m'
+          javaHomeOption: 'JDKVersion'
+          jdkVersionOption: '11'
+          jdkArchitectureOption: 'x64'
+          publishJUnitResults: false
+          goals: 'test -DsuiteFile=updateTestResult.xml'
+
+  - job: Regression_Qualification_04
+    displayName: 'Regression_Qualification_04 - Job'
+    dependsOn: Regression_Qualification_03
+    continueOnError: true
+    condition: always()
+    pool:
+      vmImage: windows-latest
+    steps:
+      - script: |
+          mvn install:install-file -Dfile=pre-requisites/appian-selenium-api-25.1.jar -DgroupId=appian -DartifactId=appian-selenium-api -Dversion=25.1 -Dpackaging=jar
+        displayName: 'Maven install custom jar'
+
+      - task: Maven@3
+        displayName: 'Install maven dependency'
+        inputs:
+          mavenPomFile: 'pom.xml'
+          mavenOptions: '-Xmx3072m'
+          javaHomeOption: 'JDKVersion'
+          jdkVersionOption: '11'
+          jdkArchitectureOption: 'x64'
+          goals: 'clean install -DskipTests'
+
+      - task: DownloadPipelineArtifact@2
+        displayName: 'Download JSON artifact'
+        inputs:
+          artifact: 'myjson'
+          path: '$(System.DefaultWorkingDirectory)'
+
+      - task: Maven@3
+        displayName: 'Run Testcases'
+        inputs:
+          mavenPomFile: 'pom.xml'
+          mavenOptions: '-Xmx3072m'
+          javaHomeOption: 'JDKVersion'
+          jdkVersionOption: '11'
+          jdkArchitectureOption: 'x64'
+          goals: 'test -DsuiteFile=testng_regression_20_qualification.xml -Durl=https://nvs-test2.appiancloud.com/suite/sites/vendor-partnership-governance?signin=Native'
+
+      - task: PublishBuildArtifacts@1
+        displayName: 'Publish Reports'
+        condition: succeededOrFailed()
+        inputs:
+          pathtoPublish: 'Reports/'
+          artifactName: 'Reports'
+
+      - task: PublishBuildArtifacts@1
+        displayName: 'Publish Screenshots on Failure'
+        condition: failed()
+        inputs:
+          pathtoPublish: 'Screenshots'
+          artifactName: 'Screenshots'
+
+      - task: Maven@3
+        displayName: 'Updating Test Results in Test Plan'
+        condition: succeededOrFailed()
+        inputs:
+          mavenPomFile: 'pom.xml'
+          mavenOptions: '-Xmx3072m'
+          javaHomeOption: 'JDKVersion'
+          jdkVersionOption: '11'
+          jdkArchitectureOption: 'x64'
+          publishJUnitResults: false
+          goals: 'test -DsuiteFile=updateTestResultRegression.xml'
+
+      - powershell: |
+          if (Test-Path "target\surefire-reports\testng-failed.xml") {
+            Write-Host "##vso[task.setvariable variable=FAILED_EXISTS]yes"
+          } else {
+            Write-Host "##vso[task.setvariable variable=FAILED_EXISTS]no"
+            Write-Host "No failed tests to rerun."
+          }
+        displayName: 'Check for failed tests'
+        condition: always()
+
+      # - script: echo "FAILED_EXISTS: $(FAILED_EXISTS)"
+      #   displayName: 'Show FAILED_EXISTS value'
+
+      - script: python -m pip install lxml
+        displayName: 'Install lxml'
+        condition: eq(variables['FAILED_EXISTS'], 'yes')
+
+      - script: python order_testng_failed.py testng_regression_20_qualification.xml target/surefire-reports/testng-failed.xml target/surefire-reports/testng-failed-ordered.xml
+        displayName: 'Create ordered failed suite'
+        condition: eq(variables['FAILED_EXISTS'], 'yes')
+
+      - task: Maven@3
+        displayName: 'Rerun failed tests in testng.xml order'
+        condition: eq(variables['FAILED_EXISTS'], 'yes')
+        inputs:
+          mavenPomFile: 'pom.xml'
+          goals: 'test'
+          options: '-Dsurefire.suiteXmlFiles=target/surefire-reports/testng-failed-ordered.xml'
+
+      - task: PublishBuildArtifacts@1
+        displayName: 'Publish testng-failed-ordered.xml as artifact'
+        condition: eq(variables['FAILED_EXISTS'], 'yes')
+        inputs:
+          targetPath: '$(System.DefaultWorkingDirectory)/testng-failed-ordered.xml'
+          artifact: 'testng-failed-suite'
+          publishLocation: 'pipeline'
+
+      - task: PublishBuildArtifacts@1
+        displayName: 'Publish Reports for rerun'
+        condition: succeededOrFailed()
+        inputs:
+          pathtoPublish: 'Reports/'
+          artifactName: 'Reports_RerunTests'
+
+      - task: PublishBuildArtifacts@1
+        displayName: 'Publish Screenshots for failed rerun'
+        condition: failed()
+        inputs:
+          pathtoPublish: 'Screenshots'
+          artifactName: 'Screenshots_FailedRerun'
+
+      - task: PublishPipelineArtifact@1
+        displayName: 'Publish a JSON pipeline artifact'
+        condition: always()
+        inputs:
+          targetPath: '$(System.DefaultWorkingDirectory)/output.json'
+          artifact: 'myjson'
+          publishLocation: 'pipeline'
+
+      - task: Maven@4
+        displayName: 'Updating Test Results for Failed Tests in Test Plan'
+        condition: succeededOrFailed()
+        inputs:
+          mavenPomFile: 'pom.xml'
+          mavenOptions: '-Xmx3072m'
+          javaHomeOption: 'JDKVersion'
+          jdkVersionOption: '11'
+          jdkArchitectureOption: 'x64'
+          publishJUnitResults: false
+          goals: 'test -DsuiteFile=updateTestResult.xml'
+
+  - job: Regression_Qualification_05
+    displayName: 'Regression_Qualification_05 - Job'
+    dependsOn: Regression_Qualification_04
+    continueOnError: true
+    condition: always()
+    pool:
+      vmImage: windows-latest
+    steps:
+      - script: |
+          mvn install:install-file -Dfile=pre-requisites/appian-selenium-api-25.1.jar -DgroupId=appian -DartifactId=appian-selenium-api -Dversion=25.1 -Dpackaging=jar
+        displayName: 'Maven install custom jar'
+
+      - task: Maven@3
+        displayName: 'Install maven dependency'
+        inputs:
+          mavenPomFile: 'pom.xml'
+          mavenOptions: '-Xmx3072m'
+          javaHomeOption: 'JDKVersion'
+          jdkVersionOption: '11'
+          jdkArchitectureOption: 'x64'
+          goals: 'clean install -DskipTests'
+
+      - task: DownloadPipelineArtifact@2
+        displayName: 'Download JSON artifact'
+        inputs:
+          artifact: 'myjson'
+          path: '$(System.DefaultWorkingDirectory)'
+
+      - task: Maven@3
+        displayName: 'Run Testcases'
+        inputs:
+          mavenPomFile: 'pom.xml'
+          mavenOptions: '-Xmx3072m'
+          javaHomeOption: 'JDKVersion'
+          jdkVersionOption: '11'
+          jdkArchitectureOption: 'x64'
+          goals: 'test -DsuiteFile=testng_regression_21_qualification.xml -Durl=https://nvs-test2.appiancloud.com/suite/sites/vendor-partnership-governance?signin=Native'
+
+      - task: PublishBuildArtifacts@1
+        displayName: 'Publish Reports'
+        condition: succeededOrFailed()
+        inputs:
+          pathtoPublish: 'Reports/'
+          artifactName: 'Reports'
+
+      - task: PublishBuildArtifacts@1
+        displayName: 'Publish Screenshots on Failure'
+        condition: failed()
+        inputs:
+          pathtoPublish: 'Screenshots'
+          artifactName: 'Screenshots'
+
+      - task: Maven@3
+        displayName: 'Updating Test Results in Test Plan'
+        condition: succeededOrFailed()
+        inputs:
+          mavenPomFile: 'pom.xml'
+          mavenOptions: '-Xmx3072m'
+          javaHomeOption: 'JDKVersion'
+          jdkVersionOption: '11'
+          jdkArchitectureOption: 'x64'
+          publishJUnitResults: false
+          goals: 'test -DsuiteFile=updateTestResultRegression.xml'
+
+      - powershell: |
+          if (Test-Path "target\surefire-reports\testng-failed.xml") {
+            Write-Host "##vso[task.setvariable variable=FAILED_EXISTS]yes"
+          } else {
+            Write-Host "##vso[task.setvariable variable=FAILED_EXISTS]no"
+            Write-Host "No failed tests to rerun."
+          }
+        displayName: 'Check for failed tests'
+        condition: always()
+
+      # - script: echo "FAILED_EXISTS: $(FAILED_EXISTS)"
+      #   displayName: 'Show FAILED_EXISTS value'
+
+      - script: python -m pip install lxml
+        displayName: 'Install lxml'
+        condition: eq(variables['FAILED_EXISTS'], 'yes')
+
+      - script: python order_testng_failed.py testng_regression_21_qualification.xml target/surefire-reports/testng-failed.xml target/surefire-reports/testng-failed-ordered.xml
+        displayName: 'Create ordered failed suite'
+        condition: eq(variables['FAILED_EXISTS'], 'yes')
+
+      - task: Maven@3
+        displayName: 'Rerun failed tests in testng.xml order'
+        condition: eq(variables['FAILED_EXISTS'], 'yes')
+        inputs:
+          mavenPomFile: 'pom.xml'
+          goals: 'test'
+          options: '-Dsurefire.suiteXmlFiles=target/surefire-reports/testng-failed-ordered.xml'
+
+      - task: PublishBuildArtifacts@1
+        displayName: 'Publish testng-failed-ordered.xml as artifact'
+        condition: eq(variables['FAILED_EXISTS'], 'yes')
+        inputs:
+          targetPath: '$(System.DefaultWorkingDirectory)/testng-failed-ordered.xml'
+          artifact: 'testng-failed-suite'
+          publishLocation: 'pipeline'
+
+      - task: PublishBuildArtifacts@1
+        displayName: 'Publish Reports for rerun'
+        condition: succeededOrFailed()
+        inputs:
+          pathtoPublish: 'Reports/'
+          artifactName: 'Reports_RerunTests'
+
+      - task: PublishBuildArtifacts@1
+        displayName: 'Publish Screenshots for failed rerun'
+        condition: failed()
+        inputs:
+          pathtoPublish: 'Screenshots'
+          artifactName: 'Screenshots_FailedRerun'
+
+      - task: PublishPipelineArtifact@1
+        displayName: 'Publish a JSON pipeline artifact'
+        condition: always()
+        inputs:
+          targetPath: '$(System.DefaultWorkingDirectory)/output.json'
+          artifact: 'myjson'
+          publishLocation: 'pipeline'
+
+      - task: Maven@4
+        displayName: 'Updating Test Results for Failed Tests in Test Plan'
+        condition: succeededOrFailed()
+        inputs:
+          mavenPomFile: 'pom.xml'
+          mavenOptions: '-Xmx3072m'
+          javaHomeOption: 'JDKVersion'
+          jdkVersionOption: '11'
+          jdkArchitectureOption: 'x64'
+          publishJUnitResults: false
+          goals: 'test -DsuiteFile=updateTestResult.xml'

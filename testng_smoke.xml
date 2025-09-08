@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE suite SYSTEM "http://testng.org/testng-1.0.dtd">
+<suite name="Automation Suite">
+    <listeners>
+        <listener class-name="AUT.listeners.ReportListeners"></listener>
+    </listeners>
+    <test name="GMA_Vison Automation Smoke Test">
+        <parameter name="browser" value="chrome" />
+        <classes>
+            <class name="CTTNotes.testcases.smoke.TC01_LoginasLibraryManager"/>
+        </classes>
+    </test>
+</suite>

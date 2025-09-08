@@ -1,0 +1,197 @@
+# Maven
+# Build your Java project and run tests with Apache Maven.
+# Add steps that analyze code, save build artifacts, deploy, and more:
+# https://docs.microsoft.com/azure/devops/pipelines/languages/java
+
+trigger:
+  - main
+
+
+jobs:
+  - job: Smoke1
+    #  timeoutInMinutes: 5
+    displayName: 'Smoke 1 Job'
+    pool:
+      vmImage: 'windows-latest'
+    steps:
+      - script: |
+          mvn install:install-file -Dfile=pre-requisites/appian-selenium-api-25.1.jar -DgroupId=appian -DartifactId=appian-selenium-api -Dversion=25.1 -Dpackaging=jar
+        displayName: 'Maven install custom jar'
+
+      - task: Maven@4
+        inputs:
+          mavenPomFile: 'pom.xml'
+          mavenOptions: '-Xmx3072m'
+          javaHomeOption: 'JDKVersion'
+          jdkVersionOption: '11'
+          jdkArchitectureOption: 'x64'
+          goals: 'clean install -DskipTests'
+        displayName: 'Install maven dependency'
+
+      - task: Maven@4
+        inputs:
+          mavenPomFile: 'pom.xml'
+          mavenOptions: '-Xmx3072m'
+          javaHomeOption: 'JDKVersion'
+          jdkVersionOption: '11'
+          jdkArchitectureOption: 'x64'
+          goals: 'test -DsuiteFile=testng_smoke.xml -Durl=https://nvs-test2.appiancloud.com/suite/sites/note/?signin=native -DurlNL=https://nvs-test2.appiancloud.com/suite/sites/note-library/?signin=native'
+
+        displayName: 'Run Testcases'
+
+      # Publish Reports artifacts
+      - task: PublishBuildArtifacts@1
+        condition: succeededOrFailed()
+        inputs:
+          pathtoPublish: 'Reports/'
+          artifactName: 'Reports'
+
+      - task: PublishBuildArtifacts@1
+        condition: Failed()
+        inputs:
+          pathtoPublish: 'Screenshots'
+          artifactName: 'Screenshots'
+
+      - task: Maven@4
+        condition: succeededOrFailed()
+        inputs:
+          mavenPomFile: 'pom.xml'
+          mavenOptions: '-Xmx3072m'
+          javaHomeOption: 'JDKVersion'
+          jdkVersionOption: '11'
+          jdkArchitectureOption: 'x64'
+          publishJUnitResults: false
+          goals: 'test -DsuiteFile=updateTestResult.xml'
+        displayName: 'Updating Test Results in Test Plan'
+
+
+      - task: Maven@4
+        condition: Failed()
+        inputs:
+          mavenPomFile: 'pom.xml'
+          mavenOptions: '-Xmx3072m'
+          javaHomeOption: 'JDKVersion'
+          jdkVersionOption: '11'
+          jdkArchitectureOption: 'x64'
+          goals: 'test -DsuiteFile=target/surefire-reports/testng-failed.xml'
+        displayName: 'Rerun Failed Testcases'
+
+      # Publish Reports artifacts
+      - task: PublishBuildArtifacts@1
+        condition: succeededOrFailed()
+        inputs:
+          pathtoPublish: 'Reports/'
+          artifactName: 'Reports_RerunTests'
+
+      - task: PublishBuildArtifacts@1
+        condition: Failed()
+        inputs:
+          pathtoPublish: 'Screenshots'
+          artifactName: 'Screenshots_FailedRerun'
+
+      - task: Maven@4
+        condition: succeededOrFailed()
+        inputs:
+          mavenPomFile: 'pom.xml'
+          mavenOptions: '-Xmx3072m'
+          javaHomeOption: 'JDKVersion'
+          jdkVersionOption: '11'
+          jdkArchitectureOption: 'x64'
+          publishJUnitResults: false
+          goals: 'test -DsuiteFile=updateTestResult.xml'
+        displayName: 'Updating Test Results for Failed Tests in Test Plan'
+
+  - job: Smoke2
+    displayName: 'Smoke 2 Job'
+    # dependsOn: Smoke1
+    continueOnError: true
+    condition: always()
+    pool:
+      vmImage: 'windows-latest'
+    steps:
+      - script: |
+          mvn install:install-file -Dfile=pre-requisites/appian-selenium-api-25.1.jar -DgroupId=appian -DartifactId=appian-selenium-api -Dversion=25.1 -Dpackaging=jar
+        displayName: 'Maven install custom jar'
+
+      - task: Maven@4
+        inputs:
+          mavenPomFile: 'pom.xml'
+          mavenOptions: '-Xmx3072m'
+          javaHomeOption: 'JDKVersion'
+          jdkVersionOption: '11'
+          jdkArchitectureOption: 'x64'
+          goals: 'clean install -DskipTests'
+        displayName: 'Install maven dependency'
+
+      - task: Maven@4
+        inputs:
+          mavenPomFile: 'pom.xml'
+          mavenOptions: '-Xmx3072m'
+          javaHomeOption: 'JDKVersion'
+          jdkVersionOption: '11'
+          jdkArchitectureOption: 'x64'
+          goals: 'test -DsuiteFile=testng_phase4.xml -Durl=https://nvs-test2.appiancloud.com/suite/sites/note/?signin=native -DurlNL=https://nvs-test2.appiancloud.com/suite/sites/note-library/?signin=native'
+
+        displayName: 'Run Testcases'
+
+      # Publish Reports artifacts
+      - task: PublishBuildArtifacts@1
+        condition: succeededOrFailed()
+        inputs:
+          pathtoPublish: 'Reports/'
+          artifactName: 'Reports'
+
+      - task: PublishBuildArtifacts@1
+        condition: Failed()
+        inputs:
+          pathtoPublish: 'Screenshots'
+          artifactName: 'Screenshots'
+
+      - task: Maven@4
+        condition: succeededOrFailed()
+        inputs:
+          mavenPomFile: 'pom.xml'
+          mavenOptions: '-Xmx3072m'
+          javaHomeOption: 'JDKVersion'
+          jdkVersionOption: '11'
+          jdkArchitectureOption: 'x64'
+          publishJUnitResults: false
+          goals: 'test -DsuiteFile=updateTestResult.xml'
+        displayName: 'Updating Test Results in Test Plan'
+
+
+      - task: Maven@4
+        condition: Failed()
+        inputs:
+          mavenPomFile: 'pom.xml'
+          mavenOptions: '-Xmx3072m'
+          javaHomeOption: 'JDKVersion'
+          jdkVersionOption: '11'
+          jdkArchitectureOption: 'x64'
+          goals: 'test -DsuiteFile=target/surefire-reports/testng-failed.xml'
+        displayName: 'Rerun Failed Testcases'
+
+      # Publish Reports artifacts
+      - task: PublishBuildArtifacts@1
+        condition: succeededOrFailed()
+        inputs:
+          pathtoPublish: 'Reports/'
+          artifactName: 'Reports_RerunTests'
+
+      - task: PublishBuildArtifacts@1
+        condition: Failed()
+        inputs:
+          pathtoPublish: 'Screenshots'
+          artifactName: 'Screenshots_FailedRerun'
+
+      - task: Maven@4
+        condition: succeededOrFailed()
+        inputs:
+          mavenPomFile: 'pom.xml'
+          mavenOptions: '-Xmx3072m'
+          javaHomeOption: 'JDKVersion'
+          jdkVersionOption: '11'
+          jdkArchitectureOption: 'x64'
+          publishJUnitResults: false
+          goals: 'test -DsuiteFile=updateTestResult.xml'
+        displayName: 'Updating Test Results for Failed Tests in Test Plan'
