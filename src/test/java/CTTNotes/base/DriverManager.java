@@ -36,6 +36,7 @@ public class DriverManager {
     public void setDriver(String testBrowser) throws MalformedURLException {
         switch(testBrowser) {
             case "chrome": {
+//                 driver = new ChromeDriver();
 //                WebDriverManager.chromedriver().setup();
                 ChromeOptions chromeOptions = new ChromeOptions();
                 //chromeOptions.addArguments("--headless");
@@ -57,12 +58,12 @@ public class DriverManager {
                     System.out.println("Could not set download behaviour" + e);
                     throw e;
                 }
-                String folderPath = "./driver";
-                File folder = new File(folderPath);
-                if (folder.exists() && folder.isDirectory()) {
-                    System.out.println("The folder exists.");
-                    System.setProperty("webdriver.chrome.driver", "./driver/chromedriver.exe");
-                }
+//                String folderPath = "./driver";
+//                File folder = new File(folderPath);
+//                if (folder.exists() && folder.isDirectory()) {
+//                    System.out.println("The folder exists.");
+//                    System.setProperty("webdriver.chrome.driver", "./driver/chromedriver.exe");
+//                }
                 driver = new ChromeDriver(chromeOptions);
                 System.out.println("***** Browser is chrome *****");
                 break;
