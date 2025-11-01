@@ -107,6 +107,26 @@ TODO: Explain how other users and developers can contribute to make your code be
 
 If you want to learn more about creating good readme files then refer the following [guidelines](https://docs.microsoft.com/en-us/azure/devops/repos/git/create-a-readme?view=azure-devops). You can also seek inspiration from the below readme files:
 
+7. Method to upload the file in playwright
+   
+   page.setInputFiles("Locator", Paths.get("filepath"))
+   page.setInputFiles("Locator", new Path[0]) // to remove the uploaded file
+
+8. Method to Download the file in Playwright
+
+    page.waitforDownload(() -> {
+    page.click(locator path);
+     });
+     
+    if we want to create the Download class object using this we can do may things then 
+
+    Download downlaod = page.waitforDownload(() -> {
+   page.click(locator path);
+   });
+
+    download.path().toString(); // to get the file source location
+    download.saveAs("Local storage path to store the file"); // to save the file in local system
+
 * [ASP.NET Core](https://github.com/aspnet/Home)
 * [Visual Studio Code](https://github.com/Microsoft/vscode)
 * [Chakra Core](https://github.com/Microsoft/ChakraCore)
